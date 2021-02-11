@@ -1,0 +1,95 @@
+# 第1章 MySQL简介
+
+## 1 MySQL逻辑架构
+
+### 1.1 Mysql分层思想
+
+1. 和其它数据库相比，MySQL有点与众不同，它的架构可以在多种不同场景中应用并发挥良好作用。主要体现在存储引擎的架构上。
+
+2. 插件式的存储引擎架构将查询处理和其它的系统任务以及数据的存储提取相分离。这种架构可以根据业务的需求和实际需要选择合适的存储引擎。
+
+   ![aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjA1NDExNjIyLnBuZw](https://sevenyear-picbed.oss-cn-beijing.aliyuncs.com/img/aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjA1NDExNjIyLnBuZw.png)
+
+### 1.2 MySQL四层架构
+
+1. **连接层**：最上层是一些客户端和连接服务，包含本地sock通信和大多数基于客户端/服务端工具实现的类似于tcp/ip的通信。主要完成一些类似于连接处理、授权认证、及相关的安全方案。在该层上引入了线程池的概念，为通过认证安全接入的客户端提供线程。同样在该层上可以实现基于SSL的安全链接。服务器也会为安全接入的每个客户端验证它所具有的操作权限。
+
+2. **服务层**：第二层架构主要完成大多数的核心服务功能，如SQL接口，并完成缓存的查询，SQL的分析和优化及部分内置函数的执行。所有跨存储引擎的功能也在这一层实现，如过程、函数等。在该层，服务器会解析查询并创建相应的内部解析树，并对其完成相应的优化如确定查询表的顺序，是否利用索引等，最后生成相应的执行操作。如果是select语句，服务器还会查询内部的缓存。如果缓存空间足够大，这样在解决大量读操作的环境中能够很好的提升系统的性能。
+
+   | Management Serveices & Utilities |                      系统管理和控制工具                      |
+   | :------------------------------: | :----------------------------------------------------------: |
+   |          SQL Interface           | SQL 接口。 接受用户的 SQL 命令， 并且返回用户需要查询的结果。 比如 select from 就是调用 SQL Interface |
+   |              Parser              |   解析器。 SQL 命令传递到解析器的时候会被解析器验证和解析    |
+   |            Optimizer             | 查询优化器。 SQL 语句在查询之前会使用查询优化器对查询进行优化， 比如有 where 条件时， 优化器来决定先投影还是先过滤。 |
+   |         Cache 和 Buffer          | 查询缓存。 如果查询缓存有命中的查询结果， 查询语句就可以直接去查询缓存中取 数据。 这个缓存机制是由一系列小缓存组成的。 比如表缓存， 记录缓存， key 缓存， 权限缓存等 |
+
+3. **引擎层**：存储引擎层，存储引擎真正的负责了MySQL中数据的存储和提取，服务器通过APl与存储引擎进行通信。不同的存储引擎具有的功能不同，这样我们可以根据自己的实际需要进行选取。后面介绍MyISAM和InnoDB
+
+4. **存储层**：数据存储层，主要是将数据存储在运行于裸设备的文件系统之上，并完成与存储引擎的交互。
+
+### 1.3 MySQL部件
+
+1. Connectors：指的是不同语言中与SQL的交互
+2. Management Serveices & Utilities： 系统管理和控制工具
+3. Connection Pool：连接池
+   - 管理缓冲用户连接，线程处理等需要缓存的需求。负责监听对 MySQL Server 的各种请求，接收连接请求，转发所有连接请求到线程管理模块。
+   - 每一个连接上 MySQL Server 的客户端请求都会被分配（或创建）一个连接线程为其单独服务。而连接线程的主要工作就是负责 MySQL Server 与客户端的通信。接受客户端的命令请求，传递 Server 端的结果信息等。线程管理模块则负责管理维护这些连接线程。包括线程的创建，线程的 cache 等。
+4. SQL Interface：SQL接口。接受用户的SQL命令，并且返回用户需要查询的结果。比如select from就是调用SQL Interface
+5. Parser：解析器
+   - SQL命令传递到解析器的时候会被解析器验证和解析。解析器是由Lex和YACC实现的，是一个很长的脚本。
+   - 在 MySQL中我们习惯将所有 Client 端发送给 Server 端的命令都称为 Query，在 MySQL Server 里面，连接线程接收到客户端的一个 Query 后，会直接将该 Query 传递给专门负责将各种 Query 进行分类然后转发给各个对应的处理模块。
+   - 解析器的主要功能：
+     - 将SQL语句进行语义和语法的分析，分解成数据结构，然后按照不同的操作类型进行分类，然后做出针对性的转发到后续步骤，以后SQL语句的传递和处理就是基于这个结构的。
+     - 如果在分解构成中遇到错误，那么就说明这个sql语句是不合理的
+6. Optimizer：查询优化器
+   - SQL语句在查询之前会使用查询优化器对查询进行优化。就是优化客户端发送过来的 sql 语句 ，根据客户端请求的 query 语句，和数据库中的一些统计信息，在一系列算法的基础上进行分析，得出一个最优的策略，告诉后面的程序如何取得这个 query 语句的结果
+   - 他使用的是“选取-投影-联接”策略进行查询。
+     - 用一个例子就可以理解： select uid,name from user where gender = 1;
+     - 这个select 查询先根据where 语句进行选取，而不是先将表全部查询出来以后再进行gender过滤
+     - 这个select查询先根据uid和name进行属性投影，而不是将属性全部取出以后再进行过滤
+     - 将这两个查询条件联接起来生成最终查询结果
+7. Cache和Buffer：查询缓存
+   - 他的主要功能是将客户端提交 给MySQL 的 Select 类 query 请求的返回结果集 cache 到内存中，与该 query 的一个 hash 值 做一个对应。该 Query 所取数据的基表发生任何数据的变化之后， MySQL 会自动使该 query 的Cache 失效。在读写比例非常高的应用系统中， Query Cache 对性能的提高是非常显著的。当然它对内存的消耗也是非常大的。
+   - 如果查询缓存有命中的查询结果，查询语句就可以直接去查询缓存中取数据。这个缓存机制是由一系列小缓存组成的。比如表缓存，记录缓存，key缓存，权限缓存等
+8. 存储引擎接口
+   - 存储引擎接口模块可以说是 MySQL 数据库中最有特色的一点了。目前各种数据库产品中，基本上只有 MySQL 可以实现其底层数据存储引擎的插件式管理。这个模块实际上只是 一个抽象类，但正是因为它成功地将各种数据处理高度抽象化，才成就了今天 MySQL 可插拔存储引擎的特色。
+   - 从上图还可以看出，MySQL区别于其他数据库的最重要的特点就是其插件式的表存储引擎。MySQL插件式的存储引擎架构提供了一系列标准的管理和服务支持，这些标准与存储引擎本身无关，可能是每个数据库系统本身都必需的，如SQL分析器和优化器等，而存储引擎是底层物理结构的实现，每个存储引擎开发者都可以按照自己的意愿来进行开发。
+   - 注意：存储引擎是基于表的，而不是数据库。
+
+### 1.4 MySQL大致查询流程
+
+**mysql 的查询流程大致是：**
+
+1. mysql 客户端通过协议与 mysql 服务器建连接， 发送查询语句， 先检查查询缓存， 如果命中， 直接返回结果，否则进行语句解析,也就是说， 在解析查询之前， 服务器会先访问查询缓存(query cache)——它存储 SELECT 语句以及相应的查询结果集。 如果某个查询结果已经位于缓存中， 服务器就不会再对查询进行解析、 优化、 以及执行。 它仅仅将缓存中的结果返回给用户即可， 这将大大提高系统的性能。
+2. 语法解析器和预处理： 首先 mysql 通过关键字将 SQL 语句进行解析， 并生成一颗对应的“解析树”。 mysql 解析器将使用 mysql 语法规则验证和解析查询； 预处理器则根据一些 mysql 规则进一步检查解析数是否合法。
+3. 查询优化器当解析树被认为是合法的了， 并且由优化器将其转化成执行计划。 一条查询可以有很多种执行方式，最后都返回相同的结果。 优化器的作用就是找到这其中最好的执行计划。
+4. mysql 默认使用的 BTREE 索引， 并且一个大致方向是：无论怎么折腾 sql， 至少在目前来说， mysql 最多只用到表中的一个索引。
+
+## 2 MySQL存储引擎
+
+> **查看MySQL支持存储引擎**
+
+```sql
+show engines;
+```
+
+![aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjExMTU1MDMwLnBuZw](https://sevenyear-picbed.oss-cn-beijing.aliyuncs.com/img/aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjExMTU1MDMwLnBuZw.png)
+
+> **查看MySQL默认存储引擎**	
+
+```sql
+show variables like '%storage_engine%';
+```
+
+![aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjExMjU3NDAzLnBuZw](https://sevenyear-picbed.oss-cn-beijing.aliyuncs.com/img/aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjExMjU3NDAzLnBuZw.png)
+
+> **MyISAM 引擎和 InnoDb 引擎的对比**
+
+![aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjExMzEzNjgyLnBuZw](https://sevenyear-picbed.oss-cn-beijing.aliyuncs.com/img/aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjExMzEzNjgyLnBuZw.png)
+
+> **阿里巴巴用的是啥数据库？**
+
+1. Percona为MySQL数据库服务器进行了改进，在功能和性能上较MySQL有着很显著的提升。该版本提升了在高负载情况下的InnoDB的性能、为DBA提供一些非常有用的性能诊断工具；另外有更多的参数和命令来控制服务器行为。
+2. 该公司新建了一款存储引擎叫xtradb完全可以替代innodb，并且在性能和并发上做得更好，阿里巴巴大部分mysql数据库其实使用的percona的原型加以修改。
+
+![aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjExNDI5NDE4LnBuZw](https://sevenyear-picbed.oss-cn-beijing.aliyuncs.com/img/aHR0cDovL2hleWdvLm9zcy1jbi1zaGFuZ2hhaS5hbGl5dW5jcy5jb20vaW1hZ2VzL2ltYWdlLTIwMjAwODAzMjExNDI5NDE4LnBuZw.png)
